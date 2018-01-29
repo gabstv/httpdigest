@@ -6,40 +6,40 @@
 //
 // Example (monero-wallet-rpc with digest):
 //
-// package main
+//  package main
 //
-// import (
-// 	//"net/http"
-// 	"fmt"
+//  import (
+//  	//"net/http"
+//  	"fmt"
 //
-// 	"github.com/gabstv/go-monero/walletrpc"
-// 	"github.com/gabstv/httpdigest"
-// )
+//  	"github.com/gabstv/go-monero/walletrpc"
+//  	"github.com/gabstv/httpdigest"
+//  )
 //
-// func main() {
-// 	t := httpdigest.New("john", "doe")
+//  func main() {
+//  	t := httpdigest.New("john", "doe")
 //
-// 	// to do a normal http request:
-// 	//
-// 	// cl := &http.Client{
-// 	// 	Transport: t,
-// 	// }
-// 	// req, _ := http.NewRequest(http.MethodGet, "url", nil)
-// 	// resp, err := cl.Do(req)
+//  	// to do a normal http request:
+//  	//
+//  	// cl := &http.Client{
+//  	// 	Transport: t,
+//  	// }
+//  	// req, _ := http.NewRequest(http.MethodGet, "url", nil)
+//  	// resp, err := cl.Do(req)
 //
-// 	client := walletrpc.New(walletrpc.Config{
-// 		Address:   "http://127.0.0.1:29567/json_rpc",
-// 		Transport: t,
-// 	})
+//  	client := walletrpc.New(walletrpc.Config{
+//  		Address:   "http://127.0.0.1:29567/json_rpc",
+//  		Transport: t,
+//  	})
 //
-// 	balance, unlocked, err := client.Getbalance()
+//  	balance, unlocked, err := client.Getbalance()
 //
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	fmt.Println("balance", walletrpc.XMRToDecimal(balance))
-// 	fmt.Println("unlocked balance", walletrpc.XMRToDecimal(unlocked))
-// }
+//  	if err != nil {
+//  		panic(err)
+//  	}
+//  	fmt.Println("balance", walletrpc.XMRToDecimal(balance))
+//  	fmt.Println("unlocked balance", walletrpc.XMRToDecimal(unlocked))
+//  }
 //
 package httpdigest
 
