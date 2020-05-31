@@ -103,14 +103,27 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// clone the body
 	if req.Body != nil {
-		save := req.Body
 		var err error
-		save, req.Body, err = drainBody(req.Body)
-		if err != nil {
-			return nil, err
+		// It is more efficient to call GetBody if it is defined,
+		// as this could avoid duplicating the underlying bytes
+		// of the body
+		if req.GetBody != nil {
+			req2.Body, err = req.GetBody()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// Otherwise we are falling back on duplicating
+			// the bytes for the body content
+			save := req.Body
+			save, req.Body, err = drainBody(req.Body)
+			if err != nil {
+				return nil, err
+			}
+			req2.Body = save
 		}
-		req2.Body = save
 	}
+
 	// make a request, if we get 401, then we digest the challenge
 	if Debug {
 		dump, err := httputil.DumpRequestOut(req, true)
