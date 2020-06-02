@@ -91,15 +91,84 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, fmt.Errorf("cnounce generator is nil")
 	}
 
-	// clone the request
-	req2 := &http.Request{}
-	*req2 = *req
-	req2.Header = make(http.Header)
-	for k, v := range req.Header {
-		req2.Header[k] = v
+	resp, err := t.doAuthRequest(req)
+	if err != nil {
+		return nil, err
 	}
-	req2.URL = new(url.URL)
-	*req2.URL = *req.URL
+
+	authh, err := t.extractResponseAuth(req, resp)
+	if err != nil {
+		return nil, err
+	}
+	t.applyRequestAuth(req, authh)
+
+	if Debug {
+		dump, err := httputil.DumpRequestOut(req, true)
+		if err != nil {
+			log.Println("dump request error", err)
+		} else {
+			fmt.Printf("dump request: \n%v\n\n\n", string(dump))
+		}
+	}
+
+	resp, err = t.Transport.RoundTrip(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if Debug {
+		dump, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			log.Println("dump response error", err)
+		} else {
+			fmt.Printf("dump response: \n%v\n\n\n", string(dump))
+		}
+	}
+
+	return resp, nil
+}
+
+// applyRequestAuth sets the authorization header on a request, using
+// the provided digest auth string
+func (t *Transport) applyRequestAuth(req *http.Request, authh string) {
+	req.Header.Set("Authorization", authh)
+}
+
+// extractResponseAuth takes a digest auth request and reply,
+// extracts the auth details and generates the digest auth string
+// for use in subsequent requests
+func (t *Transport) extractResponseAuth(authReq *http.Request, authResp *http.Response) (string, error) {
+	challengeh, err := ParseWWWAuthenticate(authResp.Header.Get("WWW-Authenticate"))
+	if err != nil {
+		return "", err
+	}
+	authh, err := challengeh.Digest(DigestInput{
+		DigestURI: authReq.URL.RequestURI(),
+		Method:    authReq.Method,
+		Cnonce:    t.CnonceGen(),
+		Username:  t.Username,
+		Password:  t.Password,
+	})
+	if err != nil {
+		return "", err
+	}
+	return authh, nil
+}
+
+// doAuthRequest takes the original client request, clones it,
+// and performs the digest auth request.
+// The returned response Body is already drained and closed.
+func (t *Transport) doAuthRequest(req *http.Request) (*http.Response, error) {
+	// clone the request
+	authReq := &http.Request{}
+	*authReq = *req
+	authReq.Header = make(http.Header)
+	for k, v := range req.Header {
+		authReq.Header[k] = v
+	}
+	authReq.URL = new(url.URL)
+	*authReq.URL = *req.URL
 
 	// clone the body
 	if req.Body != nil {
@@ -108,7 +177,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		// as this could avoid duplicating the underlying bytes
 		// of the body
 		if req.GetBody != nil {
-			req2.Body, err = req.GetBody()
+			authReq.Body, err = req.GetBody()
 			if err != nil {
 				return nil, err
 			}
@@ -120,20 +189,20 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			if err != nil {
 				return nil, err
 			}
-			req2.Body = save
+			authReq.Body = save
 		}
 	}
 
 	// make a request, if we get 401, then we digest the challenge
 	if Debug {
-		dump, err := httputil.DumpRequestOut(req, true)
+		dump, err := httputil.DumpRequestOut(authReq, true)
 		if err != nil {
 			log.Println("dump request error", err)
 		} else {
 			fmt.Printf("dump request: \n%v\n\n\n", string(dump))
 		}
 	}
-	resp, err := t.Transport.RoundTrip(req)
+	resp, err := t.Transport.RoundTrip(authReq)
 	if err != nil {
 		return nil, err
 	}
@@ -153,47 +222,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
 
-	challengeh, err := ParseWWWAuthenticate(resp.Header.Get("WWW-Authenticate"))
-	if err != nil {
-		return nil, err
-	}
-	authh, err := challengeh.Digest(DigestInput{
-		DigestURI: req.URL.RequestURI(),
-		Cnonce:    t.CnonceGen(),
-		Method:    req.Method,
-		Username:  t.Username,
-		Password:  t.Password,
-	})
-	if err != nil {
-		return nil, err
-	}
-	req2.Header.Set("Authorization", authh)
-
-	if Debug {
-		dump, err := httputil.DumpRequestOut(req2, true)
-		if err != nil {
-			log.Println("dump request error", err)
-		} else {
-			fmt.Printf("dump request: \n%v\n\n\n", string(dump))
-		}
-	}
-
-	resp2, err := t.Transport.RoundTrip(req2)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if Debug {
-		dump, err := httputil.DumpResponse(resp2, true)
-		if err != nil {
-			log.Println("dump response error", err)
-		} else {
-			fmt.Printf("dump response: \n%v\n\n\n", string(dump))
-		}
-	}
-
-	return resp2, nil
+	return resp, nil
 }
 
 // Client returns an HTTP client that uses the digest transport.
