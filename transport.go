@@ -74,9 +74,6 @@ func New(username, password string) *Transport {
 		Username:  username,
 		Password:  password,
 		Transport: http.DefaultTransport,
-		CnonceGen: func() string {
-			return ""
-		},
 	}
 }
 
@@ -86,9 +83,6 @@ func New(username, password string) *Transport {
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.Transport == nil {
 		return nil, fmt.Errorf("underlying transport is nil")
-	}
-	if t.CnonceGen == nil {
-		return nil, fmt.Errorf("cnounce generator is nil")
 	}
 
 	// clone the request
@@ -157,9 +151,15 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	// empty cnonce checked again in digest.go
+	// empty strings will be replaced with value from newCnonce()
+	var cnonce string
+	if t.CnonceGen != nil {
+		cnonce = t.CnonceGen()
+	}
 	authh, err := challengeh.Digest(DigestInput{
 		DigestURI: req.URL.RequestURI(),
-		Cnonce:    t.CnonceGen(),
+		Cnonce:    cnonce,
 		Method:    req.Method,
 		Username:  t.Username,
 		Password:  t.Password,
